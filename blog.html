@@ -261,6 +261,7 @@
         loader.style.display = "none";
         blogContainer.style.display = "block";
         loading = false;
+        totalPages = 0; // 🔑 Prevent scroll from loading again
         return;
       }
 
@@ -274,6 +275,7 @@
         loader.style.display = "none";
         blogContainer.style.display = "block";
         loading = false;
+        totalPages = 0; // 🔑 Prevent scroll from loading again
         return;
       }
 
@@ -328,13 +330,14 @@
       loader.style.display = "none";
       blogContainer.style.display = "block";
       loading = false;
+      totalPages = 0; // 🔑 Prevent scroll from loading again
     }
   }
 
   // Infinite scroll
   window.addEventListener("scroll", () => {
     if ((window.innerHeight + window.scrollY) >= document.body.offsetHeight - 300) {
-      if (currentPage <= totalPages) {
+      if (currentPage <= totalPages && totalPages > 0) {
         loadPosts();
       }
     }
@@ -357,6 +360,7 @@
   loadCategories();
   loadPosts(true);
 </script>
+
 
 
 

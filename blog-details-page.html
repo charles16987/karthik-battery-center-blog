@@ -189,130 +189,155 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
     <script src="app.js"></script>
     <script>
-      // NOTE: This URL must be your local WordPress API endpoint.
-      // If your WordPress is in a different folder, change 'wordpress' to your folder name.
-      const wordpressUrl = "https://battery-center.gt.tc";
+  // NOTE: This URL must be your local WordPress API endpoint.
+  const wordpressUrl = "https://battery-center.gt.tc";
 
-      const urlParams = new URLSearchParams(window.location.search);
-      const postId = urlParams.get('id');
+  const urlParams = new URLSearchParams(window.location.search);
+  const postId = urlParams.get('id');
 
-      // Function to hide the loader
-      function hideLoader() {
-          const loader = document.querySelector('.loader');
-          if (loader) {
-              loader.style.display = 'none';
-          }
+  // Function to hide the loader
+  function hideLoader() {
+    const loader = document.querySelector('.loader');
+    if (loader) {
+      loader.style.display = 'none';
+    }
+  }
+
+  async function loadPostDetails() {
+    if (!postId) {
+      document.getElementById('blog-content').innerHTML = "<p>No post ID specified. Please go back to the <a href='blog.html'>blog page</a>.</p>";
+      hideLoader();
+      return;
+    }
+
+    try {
+      const response = await fetch(`${wordpressUrl}/wp-json/wp/v2/posts/${postId}?_embed`);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      const post = await response.json();
+
+      // Featured image
+      let image = "./images/blog-img.jpg";
+      if (post._embedded && post._embedded["wp:featuredmedia"]) {
+        image = post._embedded["wp:featuredmedia"][0].source_url;
       }
 
-      async function loadPostDetails() {
-        if (!postId) {
-          document.getElementById('blog-content').innerHTML = "<p>No post ID specified. Please go back to the <a href='blog.html'>blog page</a>.</p>";
-          hideLoader();
-          return;
+      // Date
+      let date = new Date(post.date);
+      let formattedDate = date.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+
+      // Categories
+      let categories = [];
+      let categoryId = null;
+      if (post._embedded && post._embedded["wp:term"]) {
+        const catTerms = post._embedded["wp:term"].flat().filter(term => term.taxonomy === "category");
+        if (catTerms.length > 0) {
+          categories = catTerms.map(cat => cat.name);
+          categoryId = catTerms[0].id;
         }
-        
-        try {
-          const response = await fetch(`${wordpressUrl}/wp-json/wp/v2/posts/${postId}?_embed`);
-          if (!response.ok) {
-              throw new Error(`HTTP error! status: ${response.status}`);
-          }
-          const post = await response.json();
+      }
 
-          // Featured image
-          let image = "./images/blog-img.jpg";
-          if (post._embedded && post._embedded["wp:featuredmedia"]) {
-            image = post._embedded["wp:featuredmedia"][0].source_url;
-          }
+      const blogContent = document.getElementById('blog-content');
+      blogContent.innerHTML = `
+        <div class="product-cards position-relative blog-deails-page-card">
+          <div class="badge position-top">${categories.join(', ') || 'Blog'}</div>
+          <h1 class="m-0">${post.title.rendered}</h1>
+          <span class="blog-date"><span>${formattedDate}</span> <span class="dot-fa"><i class="fa-solid fa-circle"></i></span> <span>5mins read</span></span>
+          <img src="${image}" alt="${post.title.rendered}">
+        </div>
+        <div class="mt-4">${post.content.rendered}</div>
+        <div class="row">
+          <div class="col-md-12 text-center mt-3">
+            <a class="button-55 d-inline-block" href="blog.html" role="button">Back</a>
+          </div>
+        </div>
+      `;
 
-          // Date
-          let date = new Date(post.date);
-          let formattedDate = date.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+      // Load related posts
+      if (categoryId) {
+        loadRelatedPosts(categoryId, post.id);
+      } else {
+        // If no category, hide related section
+        const relatedSection = document.querySelector('.resend-blogs');
+        if (relatedSection) {
+          relatedSection.style.display = "none";
+        }
+      }
+    } catch (error) {
+      console.error("Error loading blog post:", error);
+      document.getElementById('blog-content').innerHTML = "<p>Unable to load this blog post.</p>";
+    } finally {
+      hideLoader();
+    }
+  }
 
-          // Categories
-          let categories = [];
-          let categoryId = null;
-          if (post._embedded && post._embedded["wp:term"]) {
-              const catTerms = post._embedded["wp:term"].flat().filter(term => term.taxonomy === "category");
-              if (catTerms.length > 0) {
-                  categories = catTerms.map(cat => cat.name);
-                  categoryId = catTerms[0].id;
-              }
-          }
+  async function loadRelatedPosts(categoryId, currentPostId) {
+    try {
+      const response = await fetch(`${wordpressUrl}/wp-json/wp/v2/posts?_embed&categories=${categoryId}&per_page=3&exclude=${currentPostId}`);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      const posts = await response.json();
 
-          const blogContent = document.getElementById('blog-content');
-          blogContent.innerHTML = `
-            <div class="product-cards position-relative blog-deails-page-card">
-              <div class="badge position-top">${categories.join(', ') || 'Blog'}</div>
-              <h1 class="m-0">${post.title.rendered}</h1>
-              <span class="blog-date"><span>${formattedDate}</span> <span class="dot-fa"><i class="fa-solid fa-circle"></i></span> <span>5mins read</span></span>
-              <img src="${image}" alt="${post.title.rendered}">
-            </div>
-            <div class="mt-4">${post.content.rendered}</div>
-            <div class="row">
-              <div class="col-md-12 text-center mt-3">
-                <a class="button-55 d-inline-block" href="blog.html" role="button">Back</a>
+      const relatedSection = document.querySelector('.resend-blogs');
+      const relatedContainer = document.getElementById('related-posts');
+      relatedContainer.innerHTML = '';
+
+      if (posts.length === 0) {
+        // Hide Related Blogs section if no posts
+        if (relatedSection) {
+          relatedSection.style.display = "none";
+        }
+        return;
+      }
+
+      // If posts exist, show section
+      if (relatedSection) {
+        relatedSection.style.display = "block";
+      }
+
+      posts.forEach(post => {
+        let image = "./images/blog-img-dummy.jpg";
+        if (post._embedded && post._embedded["wp:featuredmedia"]) {
+          image = post._embedded["wp:featuredmedia"][0].source_url;
+        }
+
+        let catName = "Blog";
+        if (post._embedded && post._embedded["wp:term"]) {
+          const cats = post._embedded["wp:term"].flat().filter(term => term.taxonomy === "category");
+          if (cats.length > 0) catName = cats[0].name;
+        }
+
+        relatedContainer.innerHTML += `
+          <div class="col-12 col-md-6 col-xl-4 mb-3">
+            <a href="blog-details-page.html?id=${post.id}">
+              <div class="product-card position-relative">
+                <div class="badge position-top">${catName}</div>
+                <img src="${image}" alt="${post.title.rendered}">
+                <span class="blog-date"><span>${new Date(post.date).toLocaleDateString("en-GB", { day: '2-digit', month: 'short', year: 'numeric' })}</span> <span class="dot-fa"><i class="fa-solid fa-circle"></i></span> <span>5mins read</span></span>
+                <h4 class="m-0" title="${post.title.rendered}">
+                  ${post.title.rendered.length > 50 
+                    ? post.title.rendered.substring(0, 50) + "..." 
+                    : post.title.rendered}
+                </h4>
               </div>
-            </div>
-          `;
-
-          // Load related posts
-          if (categoryId) {
-            loadRelatedPosts(categoryId, post.id);
-          }
-        } catch (error) {
-          console.error("Error loading blog post:", error);
-          document.getElementById('blog-content').innerHTML = "<p>Unable to load this blog post.</p>";
-        } finally {
-            hideLoader();
-        }
+            </a>
+          </div>
+        `;
+      });
+    } catch (error) {
+      console.error("Error loading related posts:", error);
+      const relatedSection = document.querySelector('.resend-blogs');
+      if (relatedSection) {
+        relatedSection.style.display = "none";
       }
+    }
+  }
 
-      async function loadRelatedPosts(categoryId, currentPostId) {
-        try {
-          const response = await fetch(`${wordpressUrl}/wp-json/wp/v2/posts?_embed&categories=${categoryId}&per_page=3&exclude=${currentPostId}`);
-          if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-          }
-          const posts = await response.json();
+  // Run post details loader
+  loadPostDetails();
+</script>
 
-          const relatedContainer = document.getElementById('related-posts');
-          relatedContainer.innerHTML = '';
-          
-          posts.forEach(post => {
-            let image = "./images/blog-img-dummy.jpg";
-            if (post._embedded && post._embedded["wp:featuredmedia"]) {
-              image = post._embedded["wp:featuredmedia"][0].source_url;
-            }
-
-            let catName = "Blog";
-            if (post._embedded && post._embedded["wp:term"]) {
-              const cats = post._embedded["wp:term"].flat().filter(term => term.taxonomy === "category");
-              if (cats.length > 0) catName = cats[0].name;
-            }
-
-            relatedContainer.innerHTML += `
-              <div class="col-12 col-md-6 col-xl-4 mb-3">
-                <a href="blog-details-page.html?id=${post.id}">
-                  <div class="product-card position-relative">
-                    <div class="badge position-top">${catName}</div>
-                    <img src="${image}" alt="${post.title.rendered}">
-                    <span class="blog-date"><span>${new Date(post.date).toLocaleDateString("en-GB", { day: '2-digit', month: 'short', year: 'numeric' })}</span> <span class="dot-fa"><i class="fa-solid fa-circle"></i></span> <span>5mins read</span></span>
-                     <h4 class="m-0" title="${post.title.rendered}">
-                        ${post.title.rendered.length > 50 
-                          ? post.title.rendered.substring(0, 50) + "..." 
-                          : post.title.rendered}
-                      </h4>
-                  </div>
-                </a>
-              </div>
-            `;
-          });
-        } catch (error) {
-          console.error("Error loading related posts:", error);
-        }
-      }
-
-      loadPostDetails();
-    </script>
   </body>
 </html>
