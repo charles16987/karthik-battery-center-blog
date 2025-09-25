@@ -140,20 +140,14 @@
       <div class="row" id="blog-container">
       </div>
     </div>
-       <!-- <div id="loading-text" class="blog-loading" style="display:none;">
-          <div class="battery">
-            <div class="charge"></div>
+    <div class="blog-loging-container">
+          <div id="ld-abc123" class="blg-x9f8q" style="display:none;">
+          <div class="bt-4g7kz">
+              <div class="ch-1v2m8"></div>
+            </div>
+            <span>Loading...</span>
           </div>
-          <span>Loading...</span>
-        </div> -->
-        <div class="blog-loging-container">
-             <div id="ld-abc123" class="blg-x9f8q" style="display:none;">
-              <div class="bt-4g7kz">
-                  <div class="ch-1v2m8"></div>
-                </div>
-                <span>Loading...</span>
-              </div>
-        </div>
+    </div>
        
 
   </section>
@@ -217,123 +211,155 @@
      <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
     <script src="app.js"></script>
     
- <script>
-let currentPage = 1;
-const postsPerPage = 9; // initially load 12
-let loading = false;
-let totalPages = 1;
-let currentCategory = "all";
-let currentSort = "desc";
+<script>
+  let currentPage = 1;
+  const postsPerPage = 9;
+  let loading = false;
+  let totalPages = 1;
+  let currentCategory = "all";
+  let currentSort = "desc";
 
-// Load categories into dropdown
-async function loadCategories() {
-  try {
-    const response = await fetch("https://battery-center.gt.tc/wp-json/wp/v2/categories");
-    const categories = await response.json();
+  const blogContainer = document.getElementById("blog-container");
+  const loader = document.getElementById("ld-abc123");
 
-    const topicsSelect = document.querySelector('select.topics');
-    topicsSelect.innerHTML = '<option value="all" selected>All Topics</option>';
+  // Load categories
+  async function loadCategories() {
+    try {
+      const response = await fetch("https://battery-center.gt.tc/wp-json/wp/v2/categories");
+      const categories = await response.json();
 
-    categories.forEach(cat => {
-      topicsSelect.innerHTML += `<option value="${cat.id}">${cat.name}</option>`;
-    });
-  } catch (error) {
-    console.error("Error loading categories:", error);
-  }
-}
+      const topicsSelect = document.querySelector("select.topics");
+      topicsSelect.innerHTML = '<option value="all" selected>All Topics</option>';
 
-// Load posts with pagination
-async function loadPosts(initial = false) {
-  if (loading) return;
-  loading = true;
-
-  // Show loading text
-  document.getElementById("ld-abc123").style.display = "block";
-
-  if (initial) currentPage = 1;
-
-  let url = `https://battery-center.gt.tc/wp-json/wp/v2/posts?_embed&order=${currentSort}&per_page=${initial ? postsPerPage : 6}&page=${currentPage}`;
-  if (currentCategory !== "all") url += `&categories=${currentCategory}`;
-
-  try {
-    const response = await fetch(url);
-    const posts = await response.json();
-    totalPages = parseInt(response.headers.get('X-WP-TotalPages'));
-
-    const container = document.getElementById("blog-container");
-    if (initial) container.innerHTML = "";
-
-    posts.forEach(post => {
-      let image = "./images/blog-img-dummy.jpg";
-      if (post._embedded && post._embedded["wp:featuredmedia"]) {
-        image = post._embedded["wp:featuredmedia"][0].source_url;
-      }
-
-      let date = new Date(post.date);
-      let formattedDate = date.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
-
-      let categoryName = "Blog";
-      if (post._embedded && post._embedded["wp:term"]) {
-        const categories = post._embedded["wp:term"].flat().filter(term => term.taxonomy === "category");
-        if (categories.length > 0) categoryName = categories[0].name;
-      }
-
-      container.innerHTML += `
-        <div class="col-12 col-md-6 col-xl-4">
-          <a href="blog-details-page.html?id=${post.id}">
-            <div class="product-card position-relative">
-              <div class="badge position-top">${categoryName}</div>
-              <img src="${image}" alt="${post.title.rendered}">
-              <span class="blog-date"><span>${formattedDate}</span> <span class="dot-fa"><i class="fa-solid fa-circle"></i></span> <span>5 mins read</span></span>
-               <h4 class="m-0" title="${post.title.rendered}">
-                  ${post.title.rendered.length > 50 
-                    ? post.title.rendered.substring(0, 50) + "..." 
-                    : post.title.rendered}
-                </h4>
-            </div>
-          </a>
-        </div>
-      `;
-    });
-
-    currentPage++;
-    loading = false;
-
-  } catch (error) {
-    console.error("Error loading posts:", error);
-    loading = false;
-  }
-
-  // Hide loading text after fetch
-  document.getElementById("ld-abc123").style.display = "none";
-}
-
-// Infinite scroll
-window.addEventListener('scroll', () => {
-  if ((window.innerHeight + window.scrollY) >= document.body.offsetHeight - 300) {
-    if (currentPage <= totalPages) {
-      loadPosts();
+      categories.forEach(cat => {
+        topicsSelect.innerHTML += `<option value="${cat.id}">${cat.name}</option>`;
+      });
+    } catch (error) {
+      console.error("Error loading categories:", error);
     }
   }
-});
 
-// Dropdowns
-document.querySelector('select.topics').addEventListener('change', () => {
-  currentCategory = document.querySelector('select.topics').value;
-  currentSort = document.querySelector('select.sort').value;
+  // Load posts
+  async function loadPosts(initial = false) {
+    if (loading) return;
+    loading = true;
+
+    // show loader + hide posts
+    loader.style.display = "flex";
+    if (initial) blogContainer.style.display = "none";
+
+    if (initial) currentPage = 1;
+
+    let url = `https://battery-center.gt.tc/wp-json/wp/v2/posts?_embed&order=${currentSort}&per_page=${initial ? postsPerPage : 6}&page=${currentPage}`;
+    if (currentCategory !== "all") url += `&categories=${currentCategory}`;
+
+    try {
+      const response = await fetch(url);
+
+      if (response.status === 400) {
+        blogContainer.innerHTML = `<div class="col-12 text-center py-4 fw-bold text-danger">No Data Found</div>`;
+        loader.style.display = "none";
+        blogContainer.style.display = "block";
+        loading = false;
+        return;
+      }
+
+      const posts = await response.json();
+      totalPages = parseInt(response.headers.get("X-WP-TotalPages")) || 1;
+
+      if (initial) blogContainer.innerHTML = "";
+
+      if (!posts || posts.length === 0) {
+        blogContainer.innerHTML = `<div class="col-12 text-center py-4 fw-bold text-danger">No Data Found</div>`;
+        loader.style.display = "none";
+        blogContainer.style.display = "block";
+        loading = false;
+        return;
+      }
+
+      posts.forEach(post => {
+        let image = "./images/blog-img-dummy.jpg";
+        if (post._embedded && post._embedded["wp:featuredmedia"]) {
+          image = post._embedded["wp:featuredmedia"][0].source_url;
+        }
+
+        let date = new Date(post.date);
+        let formattedDate = date.toLocaleDateString("en-GB", {
+          day: "2-digit",
+          month: "short",
+          year: "numeric"
+        });
+
+        let categoryName = "Blog";
+        if (post._embedded && post._embedded["wp:term"]) {
+          const categories = post._embedded["wp:term"].flat().filter(term => term.taxonomy === "category");
+          if (categories.length > 0) categoryName = categories[0].name;
+        }
+
+        blogContainer.innerHTML += `
+          <div class="col-12 col-md-6 col-xl-4">
+            <a href="blog-details-page.html?id=${post.id}">
+              <div class="product-card position-relative">
+                <div class="badge position-top">${categoryName}</div>
+                <img src="${image}" alt="${post.title.rendered}" class="img-fluid">
+                <span class="blog-date">
+                  <span>${formattedDate}</span>
+                  <span class="dot-fa"><i class="fa-solid fa-circle"></i></span>
+                  <span>5 mins read</span>
+                </span>
+                <h4 class="m-0" title="${post.title.rendered}">
+                  ${post.title.rendered.length > 50 ? post.title.rendered.substring(0, 50) + "..." : post.title.rendered}
+                </h4>
+              </div>
+            </a>
+          </div>
+        `;
+      });
+
+      currentPage++;
+      loading = false;
+
+      // hide loader + show posts
+      loader.style.display = "none";
+      blogContainer.style.display = "flex";
+    } catch (error) {
+      console.error("Error loading posts:", error);
+      blogContainer.innerHTML = `<div class="col-12 text-center py-4 fw-bold text-danger">No Data Found</div>`;
+      loader.style.display = "none";
+      blogContainer.style.display = "block";
+      loading = false;
+    }
+  }
+
+  // Infinite scroll
+  window.addEventListener("scroll", () => {
+    if ((window.innerHeight + window.scrollY) >= document.body.offsetHeight - 300) {
+      if (currentPage <= totalPages) {
+        loadPosts();
+      }
+    }
+  });
+
+  // Filters
+  document.querySelector("select.topics").addEventListener("change", () => {
+    currentCategory = document.querySelector("select.topics").value;
+    currentSort = document.querySelector("select.sort").value;
+    loadPosts(true);
+  });
+
+  document.querySelector("select.sort").addEventListener("change", () => {
+    currentCategory = document.querySelector("select.topics").value;
+    currentSort = document.querySelector("select.sort").value;
+    loadPosts(true);
+  });
+
+  // Init
+  loadCategories();
   loadPosts(true);
-});
-
-document.querySelector('select.sort').addEventListener('change', () => {
-  currentCategory = document.querySelector('select.topics').value;
-  currentSort = document.querySelector('select.sort').value;
-  loadPosts(true);
-});
-
-// Initial load
-loadCategories();
-loadPosts(true);
 </script>
+
+
+
 
 
   </body>
